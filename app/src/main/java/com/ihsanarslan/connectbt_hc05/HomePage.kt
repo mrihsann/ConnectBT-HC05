@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,16 @@ fun HomePage() {
     val bluetoothHelper = BluetoothHelper(bluetoothAdapter)
 
     val buttonTexts = listOf("Mama", "Su", "Isı")
+    var message by remember { mutableStateOf("") }
+
+    LaunchedEffect(key1 = message) {
+        Toast.makeText(
+            context,
+            message,
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
 
     Scaffold(){
         Column(
@@ -118,12 +129,8 @@ fun HomePage() {
                         // Burada her butona tıklama ile ilgili işlem yapılacak
                         CoroutineScope(Dispatchers.IO).launch {
                             // Burada her butona tıklama ile ilgili işlem yapılacak
-                            bluetoothHelper.sendDataToHC05(buttonText) { message ->
-                                Toast.makeText(
-                                    context,
-                                    message,
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            bluetoothHelper.sendDataToHC05(buttonText) { data ->
+                                message = data
                             }
                         }
                     },
