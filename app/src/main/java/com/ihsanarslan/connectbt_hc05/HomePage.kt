@@ -1,6 +1,7 @@
 package com.ihsanarslan.connectbt_hc05
 
 import android.bluetooth.BluetoothAdapter
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +29,10 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun HomePage() {
+
+    // Context burada LocalContext.current ile alınıyor
+    val context = LocalContext.current
+
     var btDevices by remember { mutableStateOf("") }
     var btReadings by remember { mutableStateOf("") }
     var isConnected by remember { mutableStateOf(false) }
@@ -34,6 +40,8 @@ fun HomePage() {
 
     val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
     val bluetoothHelper = BluetoothHelper(bluetoothAdapter)
+
+    val buttonTexts = listOf("Mama", "Su", "Isı")
 
     Scaffold(){
         Column(
@@ -100,6 +108,31 @@ fun HomePage() {
             )
 
             Text(text = btReadings, fontSize = 16.sp)
+
+            Spacer(modifier = Modifier.height(50.dp))
+
+            // Her bir buton için tıklanabilir bir metin
+            buttonTexts.forEach { buttonText ->
+                Button(
+                    onClick = {
+                        // Burada her butona tıklama ile ilgili işlem yapılacak
+                        CoroutineScope(Dispatchers.IO).launch {
+                            // Burada her butona tıklama ile ilgili işlem yapılacak
+                            bluetoothHelper.sendDataToHC05(buttonText) { message ->
+                                Toast.makeText(
+                                    context,
+                                    message,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    },
+                    enabled = !isLoading && btDevices.contains("HC-05"),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(buttonText)
+                }
+            }
         }
     }
 }
