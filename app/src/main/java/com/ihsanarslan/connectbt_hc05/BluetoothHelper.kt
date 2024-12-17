@@ -3,6 +3,7 @@ package com.ihsanarslan.connectbt_hc05
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
+import android.content.ContentValues.TAG
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,24 +20,26 @@ class BluetoothHelper(private val bluetoothAdapter: BluetoothAdapter?) {
         private val HC_05_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     }
 
+    // HC-05 ile bağlantı kurar ve veri okur
     suspend fun connectToHC05(): String? {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
             return "Bluetooth is disabled or not supported"
         }
-
         val hc05Device = bluetoothAdapter.bondedDevices.find { it.name == "HC-05" }
             ?: return "HC-05 not paired"
-
         return withContext(Dispatchers.IO) {
             var socket: BluetoothSocket? = null
             try {
                 socket = hc05Device.createRfcommSocketToServiceRecord(HC_05_UUID)
                 socket.connect()
-
+                val inputStream = socket.inputStream
+                val buffer = ByteArray(1024)
+                val bytes = inputStream.read(buffer)
+                val message = String(buffer, 0, bytes)
                 socket.close()
-                "Successfully connected to HC-05"
+                message
             } catch (e: IOException) {
-                Log.e("Bluetooth", "Error connecting to HC-05: ${e.message}")
+                Log.e(TAG, "Error connecting to HC-05: ${e.message}")
                 socket?.close()
                 null
             }
