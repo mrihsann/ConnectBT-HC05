@@ -1,5 +1,6 @@
 package com.ihsanarslan.connectbt_hc05
 
+import android.bluetooth.BluetoothAdapter
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,9 +15,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestBluetoothPermissions()
+        val bluetoothManager = BluetoothManager(BluetoothAdapter.getDefaultAdapter())
 
         setContent{
-            HomePage()
+            HomePage(bluetoothManager)
         }
 
     }

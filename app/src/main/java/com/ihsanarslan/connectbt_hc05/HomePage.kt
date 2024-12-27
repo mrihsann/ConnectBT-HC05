@@ -1,144 +1,125 @@
 package com.ihsanarslan.connectbt_hc05
 
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
-fun HomePage() {
-
-    // Context burada LocalContext.current ile alınıyor
+fun HomePage(bluetoothManager: BluetoothManager) {
+    var connectionState by remember { mutableStateOf<BluetoothManager.BluetoothState>(BluetoothManager.BluetoothState.Disconnected) }
+    var receivedData by remember { mutableStateOf("") }
+    var pairedDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    var btDevices by remember { mutableStateOf("") }
-    var btReadings by remember { mutableStateOf("") }
-    var isConnected by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
+    val actions = listOf("Mama", "Su", "Isı")
 
-    val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-    val bluetoothHelper = BluetoothHelper(bluetoothAdapter)
-
-    val buttonTexts = listOf("Mama", "Su", "Isı")
-    var message by remember { mutableStateOf("") }
-
-    LaunchedEffect(key1 = message) {
-        Toast.makeText(
-            context,
-            message,
-            Toast.LENGTH_SHORT
-        ).show()
-    }
-
-
-    Scaffold(){
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(it)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Button(
+            onClick = { pairedDevices = bluetoothManager.getPairedDevices() },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = "Linked Bluetooth Devices:",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Eşleşmiş Cihazları Göster")
+        }
 
-            Text(text = btDevices.ifEmpty { "No devices found" }, fontSize = 16.sp)
-
-            Button(
-                onClick = {
-                    btDevices = bluetoothHelper.searchPairedDevices()
-                },
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Search Paired Devices")
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            items(pairedDevices.size) { index ->
+                Text("${pairedDevices[index].name ?: "Unknown"} (${pairedDevices[index].address})")
             }
+        }
 
-            Button(
-                onClick = {
-                    isLoading = true
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val result = bluetoothHelper.connectToHC05()
-                        withContext(Dispatchers.Main) {
-                            btReadings = result ?: "Error: Unable to connect or read data"
-                            isConnected = result != null
-                            isLoading = false
+        Button(
+            onClick = {
+                scope.launch {
+                    connectionState = bluetoothManager.connectToDevice()
+                    if (connectionState is BluetoothManager.BluetoothState.Connected) {
+                        bluetoothManager.receiveData().collect { data ->
+                            receivedData = data
                         }
                     }
-                },
-                enabled = btDevices.contains("HC-05") && !isConnected,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Connect to HC-05")
-            }
+                }
+            },
+            enabled = connectionState is BluetoothManager.BluetoothState.Disconnected,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Bağlan")
+        }
 
+        Text(
+            "Durum: ${
+                when (connectionState) {
+                    is BluetoothManager.BluetoothState.Connected -> "Bağlı"
+                    is BluetoothManager.BluetoothState.Disconnected -> "Bağlı Değil"
+                    is BluetoothManager.BluetoothState.Error -> "Hata: ${(connectionState as BluetoothManager.BluetoothState.Error).message}"
+                }
+            }"
+        )
+
+        Text("Alınan Veri: $receivedData")
+
+        actions.forEach { action ->
             Button(
                 onClick = {
-                    btDevices = ""
-                    btReadings = ""
-                    isConnected = false
+                    scope.launch {
+                        val success = bluetoothManager.sendData(action)
+                        Toast.makeText(
+                            context,
+                            if (success) "$action gönderildi" else "Gönderim başarısız",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 },
-                enabled = !isLoading,
+                enabled = connectionState is BluetoothManager.BluetoothState.Connected,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Clear Data")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Readings:",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(text = btReadings, fontSize = 16.sp)
-
-            Spacer(modifier = Modifier.height(50.dp))
-
-            // Her bir buton için tıklanabilir bir metin
-            buttonTexts.forEach { buttonText ->
-                Button(
-                    onClick = {
-                        // Burada her butona tıklama ile ilgili işlem yapılacak
-                        CoroutineScope(Dispatchers.IO).launch {
-                            // Burada her butona tıklama ile ilgili işlem yapılacak
-                            bluetoothHelper.sendDataToHC05(buttonText) { data ->
-                                message = data
-                            }
-                        }
-                    },
-                    enabled = !isLoading && btDevices.contains("HC-05"),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(buttonText)
-                }
+                Text(action)
             }
         }
     }
