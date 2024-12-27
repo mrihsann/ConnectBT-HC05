@@ -2,6 +2,7 @@ package com.ihsanarslan.connectbt_hc05
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -44,13 +46,14 @@ import java.util.Locale
 
 @Composable
 fun HomePage(bluetoothManager: BluetoothManager) {
-    var connectionState by remember { mutableStateOf<BluetoothManager.BluetoothState>(BluetoothManager.BluetoothState.Disconnected) }
-    var receivedData by remember { mutableStateOf("") }
     var pairedDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var connectionState by remember { mutableStateOf<BluetoothManager.BluetoothState>(BluetoothManager.BluetoothState.Disconnected) }
+    var receivedDataList by remember { mutableStateOf<List<String>>(emptyList()) }
+    val scope = rememberCoroutineScope()
 
     val actions = listOf("Mama", "Su", "Isı")
+
 
     Column(
         modifier = Modifier
@@ -59,7 +62,11 @@ fun HomePage(bluetoothManager: BluetoothManager) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Button(
-            onClick = { pairedDevices = bluetoothManager.getPairedDevices() },
+            onClick = {
+                pairedDevices = bluetoothManager.getPairedDevices()
+                println(receivedDataList)
+                println("deneme mesaj")
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Eşleşmiş Cihazları Göster")
@@ -75,13 +82,36 @@ fun HomePage(bluetoothManager: BluetoothManager) {
             }
         }
 
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            items(receivedDataList.reversed().size) { index ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Text(
+                        text = receivedDataList.reversed()[index],
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+
         Button(
             onClick = {
                 scope.launch {
                     connectionState = bluetoothManager.connectToDevice()
                     if (connectionState is BluetoothManager.BluetoothState.Connected) {
-                        bluetoothManager.receiveData().collect { data ->
-                            receivedData = data
+                        bluetoothManager.receiveData().collectLatest { data ->
+                            receivedDataList = receivedDataList + data
                         }
                     }
                 }
@@ -101,8 +131,6 @@ fun HomePage(bluetoothManager: BluetoothManager) {
                 }
             }"
         )
-
-        Text("Alınan Veri: $receivedData")
 
         actions.forEach { action ->
             Button(

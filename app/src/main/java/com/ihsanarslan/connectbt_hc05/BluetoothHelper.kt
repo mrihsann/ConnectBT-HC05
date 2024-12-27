@@ -23,7 +23,7 @@ import java.util.UUID
 
 class BluetoothManager(private val bluetoothAdapter: BluetoothAdapter?) {
     private var bluetoothSocket: BluetoothSocket? = null
-    private val TAG = "BluetoothManager"
+    private val TAG = "LOGGGGG"
 
     companion object {
         private const val HC05_NAME = "HC-05"
@@ -75,19 +75,39 @@ class BluetoothManager(private val bluetoothAdapter: BluetoothAdapter?) {
     }
 
     fun receiveData(): Flow<String> = flow {
+        println("0")
         try {
+            println("1")
             val buffer = ByteArray(1024)
+            println("2")
             while (true) {
-                val bytes = bluetoothSocket?.inputStream?.read(buffer) ?: -1
-                if (bytes > 0) {
-                    val received = String(buffer, 0, bytes)
-                    emit(received)
+                println("3")
+                val bytes = bluetoothSocket?.inputStream?.read(buffer)
+                println("4")
+                if (bytes != null) {
+                    println("5")
+                    if (bytes > 0) {
+                        val received = String(buffer, 0, bytes)
+                        println("Data received: $received")
+                        Log.d(TAG, "Data received: $received")
+                        emit(received)
+                    } else {
+                        println("No data received")
+                        Log.d(TAG, "No data received")
+                    }
+                } else {
+                    println("Bluetooth socket is null")
+                    Log.d(TAG, "Bluetooth socket is null")
+                    break  // Döngüyü sonlandırmak için break ifadesi
                 }
             }
         } catch (e: IOException) {
             Log.e(TAG, "Receive failed: ${e.message}")
+            emit("Error: ${e.message}")
         }
     }.flowOn(Dispatchers.IO)
+
+
 
     fun getPairedDevices(): List<BluetoothDevice> {
         return bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
