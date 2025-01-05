@@ -1,8 +1,6 @@
 package com.ihsanarslan.connectbt_hc05
 
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,48 +8,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 
 @Composable
 fun HomePage(bluetoothManager: BluetoothManager) {
@@ -64,6 +42,9 @@ fun HomePage(bluetoothManager: BluetoothManager) {
     val scope = rememberCoroutineScope()
     val actions = listOf("Mama", "Su", "Isı")
 
+    var showDisconnectedDialog by remember { mutableStateOf(false) }
+    var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -74,131 +55,241 @@ fun HomePage(bluetoothManager: BluetoothManager) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Status Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            // Status Banner
+            AnimatedVisibility(
+                visible = connectionState is BluetoothManager.BluetoothState.Error,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Bluetooth Durumu",
-                        style = MaterialTheme.typography.titleLarge
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
                     )
-
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = when (connectionState) {
-                                is BluetoothManager.BluetoothState.Connected -> "Bağlı"
-                                is BluetoothManager.BluetoothState.Disconnected -> "Bağlı Değil"
-                                is BluetoothManager.BluetoothState.Error ->
-                                    "Hata: ${(connectionState as BluetoothManager.BluetoothState.Error).message}"
-                            },
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Error,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = (connectionState as? BluetoothManager.BluetoothState.Error)?.message
+                                    ?: "Bağlantı hatası",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        FilledTonalButton(onClick = { showDisconnectedDialog = false }) {
+                            Text("Tamam")
+                        }
+                    }
+                }
+            }
 
-                        Button(
+            // Connected Device Status
+            AnimatedVisibility(
+                visible = connectionState is BluetoothManager.BluetoothState.Connected,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Bluetooth,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Column {
+                                Text(
+                                    text = selectedDevice?.name ?: "Bağlı Cihaz",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = selectedDevice?.address ?: "",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        FilledTonalButton(
                             onClick = {
                                 scope.launch {
-                                    connectionState = bluetoothManager.connectToDevice()
-                                    if (connectionState is BluetoothManager.BluetoothState.Connected) {
-                                        bluetoothManager.receiveData().collectLatest { data ->
-                                            receivedDataList = receivedDataList + data
-                                        }
-                                    }
+                                    bluetoothManager.disconnect()
+                                    connectionState = BluetoothManager.BluetoothState.Disconnected
+                                    selectedDevice = null
                                 }
                             },
-                            enabled = connectionState is BluetoothManager.BluetoothState.Disconnected
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
                         ) {
-                            Text(if (connectionState is BluetoothManager.BluetoothState.Connected) "Bağlı" else "Bağlan")
+                            Icon(
+                                imageVector = Icons.Default.BluetoothDisabled,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Bağlantıyı Kes")
                         }
                     }
                 }
             }
 
             // Paired Devices Section
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            AnimatedVisibility(
+                visible = connectionState is BluetoothManager.BluetoothState.Disconnected,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "Eşleşmiş Cihazlar",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        FilledTonalButton(
-                            onClick = { pairedDevices = bluetoothManager.getPairedDevices() }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Yenile")
-                        }
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .heightIn(max = 150.dp)
-                            .fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(pairedDevices.size) { index ->
-                            ListItem(
-                                headlineContent = {
-                                    Text(pairedDevices[index].name ?: "Bilinmeyen Cihaz")
-                                },
-                                supportingContent = {
-                                    Text(pairedDevices[index].address)
-                                }
+                            Text(
+                                text = "Eşleşmiş Cihazlar",
+                                style = MaterialTheme.typography.titleMedium
                             )
+                            FilledTonalButton(
+                                onClick = { pairedDevices = bluetoothManager.getPairedDevices() }
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null)
+                            }
+                        }
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .heightIn(max = 200.dp)
+                                .fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(pairedDevices.size) { index ->
+                                val device = pairedDevices[index]
+                                ElevatedCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        scope.launch {
+                                            selectedDevice = device
+                                            connectionState = bluetoothManager.connectToDevice()
+                                            if (connectionState is BluetoothManager.BluetoothState.Connected) {
+                                                bluetoothManager.receiveData().collectLatest { data ->
+                                                    receivedDataList = receivedDataList + data
+                                                }
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(device.name ?: "Bilinmeyen Cihaz")
+                                        },
+                                        supportingContent = {
+                                            Text(device.address)
+                                        },
+                                        leadingContent = {
+                                            Icon(
+                                                Icons.Default.Bluetooth,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        },
+                                        trailingContent = {
+                                            Icon(
+                                                Icons.Default.ChevronRight,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
             // Received Data Section
-            Card(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            AnimatedVisibility(
+                visible = connectionState is BluetoothManager.BluetoothState.Connected,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ElevatedCard(
+                    modifier = Modifier
+                        .height(250.dp)  // Sabit yükseklik
+                        .fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Alınan Veriler",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
-                    LazyColumn(
-                        reverseLayout = true,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(receivedDataList.size) { index ->
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                Text(
-                                    text = receivedDataList[receivedDataList.size - 1 - index],
-                                    modifier = Modifier.padding(8.dp),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                        Text(
+                            text = "Alınan Veriler",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)  // Kalan alanı doldur
+                                .fillMaxWidth(),
+                            reverseLayout = true,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(receivedDataList.size) { index ->
+                                ElevatedCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.elevatedCardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DataUsage,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = receivedDataList[receivedDataList.size - 1 - index],
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -206,44 +297,74 @@ fun HomePage(bluetoothManager: BluetoothManager) {
             }
 
             // Action Buttons
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            AnimatedVisibility(
+                visible = connectionState is BluetoothManager.BluetoothState.Connected,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Kontroller",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        actions.forEach { action ->
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        val success = bluetoothManager.sendData(action)
-                                        Toast.makeText(
-                                            context,
-                                            if (success) "$action gönderildi" else "Gönderim başarısız",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                },
-                                enabled = connectionState is BluetoothManager.BluetoothState.Connected,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(action)
+                        Text(
+                            text = "Kontroller",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            actions.forEach { action ->
+                                ElevatedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            val success = bluetoothManager.sendData(action)
+                                            Toast.makeText(
+                                                context,
+                                                if (success) "$action gönderildi" else "Gönderim başarısız",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(action)
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Disconnection Dialog
+    if (showDisconnectedDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectedDialog = false },
+            title = { Text("Bağlantı Kesildi") },
+            text = { Text("Bluetooth bağlantısı kesildi. Yeniden bağlanmak ister misiniz?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            connectionState = bluetoothManager.connectToDevice()
+                            showDisconnectedDialog = false
+                        }
+                    }
+                ) {
+                    Text("Yeniden Bağlan")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectedDialog = false }) {
+                    Text("İptal")
+                }
+            }
+        )
     }
 }
