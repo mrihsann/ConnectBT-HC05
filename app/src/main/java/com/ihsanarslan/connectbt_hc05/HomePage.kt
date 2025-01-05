@@ -27,8 +27,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -44,110 +42,207 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+
 @Composable
 fun HomePage(bluetoothManager: BluetoothManager) {
     var pairedDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     val context = LocalContext.current
-    var connectionState by remember { mutableStateOf<BluetoothManager.BluetoothState>(BluetoothManager.BluetoothState.Disconnected) }
+    var connectionState by remember {
+        mutableStateOf<BluetoothManager.BluetoothState>(BluetoothManager.BluetoothState.Disconnected)
+    }
     var receivedDataList by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
-
     val actions = listOf("Mama", "Su", "Isı")
 
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        Button(
-            onClick = {
-                pairedDevices = bluetoothManager.getPairedDevices()
-                println(receivedDataList)
-                println("deneme mesaj")
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Eşleşmiş Cihazları Göster")
-        }
-
-        LazyColumn(
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(pairedDevices.size) { index ->
-                Text("${pairedDevices[index].name ?: "Unknown"} (${pairedDevices[index].address})")
-            }
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            items(receivedDataList.reversed().size) { index ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+            // Status Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = receivedDataList.reversed()[index],
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Bluetooth Durumu",
+                        style = MaterialTheme.typography.titleLarge
                     )
-                }
-            }
-        }
 
-        Button(
-            onClick = {
-                scope.launch {
-                    connectionState = bluetoothManager.connectToDevice()
-                    if (connectionState is BluetoothManager.BluetoothState.Connected) {
-                        bluetoothManager.receiveData().collectLatest { data ->
-                            receivedDataList = receivedDataList + data
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = when (connectionState) {
+                                is BluetoothManager.BluetoothState.Connected -> "Bağlı"
+                                is BluetoothManager.BluetoothState.Disconnected -> "Bağlı Değil"
+                                is BluetoothManager.BluetoothState.Error ->
+                                    "Hata: ${(connectionState as BluetoothManager.BluetoothState.Error).message}"
+                            },
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    connectionState = bluetoothManager.connectToDevice()
+                                    if (connectionState is BluetoothManager.BluetoothState.Connected) {
+                                        bluetoothManager.receiveData().collectLatest { data ->
+                                            receivedDataList = receivedDataList + data
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = connectionState is BluetoothManager.BluetoothState.Disconnected
+                        ) {
+                            Text(if (connectionState is BluetoothManager.BluetoothState.Connected) "Bağlı" else "Bağlan")
                         }
                     }
                 }
-            },
-            enabled = connectionState is BluetoothManager.BluetoothState.Disconnected,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Bağlan")
-        }
+            }
 
-        Text(
-            "Durum: ${
-                when (connectionState) {
-                    is BluetoothManager.BluetoothState.Connected -> "Bağlı"
-                    is BluetoothManager.BluetoothState.Disconnected -> "Bağlı Değil"
-                    is BluetoothManager.BluetoothState.Error -> "Hata: ${(connectionState as BluetoothManager.BluetoothState.Error).message}"
-                }
-            }"
-        )
-
-        actions.forEach { action ->
-            Button(
-                onClick = {
-                    scope.launch {
-                        val success = bluetoothManager.sendData(action)
-                        Toast.makeText(
-                            context,
-                            if (success) "$action gönderildi" else "Gönderim başarısız",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                },
-                enabled = connectionState is BluetoothManager.BluetoothState.Connected,
-                modifier = Modifier.fillMaxWidth()
+            // Paired Devices Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                Text(action)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Eşleşmiş Cihazlar",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        FilledTonalButton(
+                            onClick = { pairedDevices = bluetoothManager.getPairedDevices() }
+                        ) {
+                            Text("Yenile")
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .heightIn(max = 150.dp)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(pairedDevices.size) { index ->
+                            ListItem(
+                                headlineContent = {
+                                    Text(pairedDevices[index].name ?: "Bilinmeyen Cihaz")
+                                },
+                                supportingContent = {
+                                    Text(pairedDevices[index].address)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Received Data Section
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Alınan Veriler",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    LazyColumn(
+                        reverseLayout = true,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(receivedDataList.size) { index ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    text = receivedDataList[receivedDataList.size - 1 - index],
+                                    modifier = Modifier.padding(8.dp),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Action Buttons
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Kontroller",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        actions.forEach { action ->
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        val success = bluetoothManager.sendData(action)
+                                        Toast.makeText(
+                                            context,
+                                            if (success) "$action gönderildi" else "Gönderim başarısız",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                enabled = connectionState is BluetoothManager.BluetoothState.Connected,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(action)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
